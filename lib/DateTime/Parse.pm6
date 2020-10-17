@@ -6,7 +6,7 @@ my class X::DateTime::CannotParse is Exception {
 class DateTime::Parse is DateTime {
     grammar DateTime::Parse::Grammar {
         token TOP {
-            <dt=rfc3339-date> | <dt=rfc1123-date> | <dt=rfc850-date> | <dt=rfc850-var-date> | <dt=rfc850-var-date-two> | <dt=asctime-date>
+            <dt=rfc3339-date> | <dt=rfc1123-date> | <dt=rfc850-date> | <dt=rfc850-rss-date> | <dt=rfc850-var-date> | <dt=rfc850-var-date-two> | <dt=asctime-date>
         }
 
         token rfc3339-date {
@@ -34,7 +34,7 @@ class DateTime::Parse is DateTime {
         }
 
         token time-numoffset {
-            <sign=[+-]> <hour=.D2> ':' <minute=.D2>
+            <sign=[+-]> <hour=.D2> ':'? <minute=.D2>
         }
 
         token time-houroffset {
@@ -57,6 +57,11 @@ class DateTime::Parse is DateTime {
             <.weekday> ',' <.SP> <date=.date2> <.SP> <time> <.SP> <gmtUtc>
         }
 
+        # A variant of rfc860-date used in ie. RSS feeds
+        token rfc850-rss-date {
+            <.wkday> ','? <.SP> <date=.date1> <.SP> <time> <.SP> <offset=.time-numoffset>
+        }
+
         token rfc850-var-date {
             <.wkday> ','? <.SP> <date=.date4> <.SP> <time> <.SP> <gmtUtc>
         }
@@ -66,7 +71,7 @@ class DateTime::Parse is DateTime {
         }
 
         token asctime-date {
-            <.wkday> <.SP> <date=.date3> <.SP> <time> <.SP> <year=.D4-year> <asctime-tz>?
+            <.wkday> ','? <.SP> <date=.date3> <.SP> <time> <.SP> <year=.D4-year> <asctime-tz>?
         }
 
         token asctime-tz {
@@ -151,6 +156,12 @@ class DateTime::Parse is DateTime {
             make DateTime.new(|$<date>.made, |$<time>.made)
         }
 
+        method rfc850-rss-date($/) {
+            my $tz = ($<offset>.made.<hour> // 0) × 3600;
+            $tz += ($<offset>.made.<minute> // 0) × 60;
+            make DateTime.new(|$<date>.made, |$<time>.made, :timezone($tz))
+        }
+
         method rfc850-var-date($/) {
             make DateTime.new(|$<date>.made, |$<time>.made)
         }
@@ -205,6 +216,13 @@ class DateTime::Parse is DateTime {
 
         method asctime-tzname($/) {
             make ~$/
+        }
+
+        method time-numoffset($/) {
+            make {
+                hour => $<hour>,
+                minute => $<minute>
+            }
         }
 
         method time-houroffset($/) {
